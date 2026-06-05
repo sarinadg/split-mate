@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { AppState } from './types'
 
 const STORAGE_KEY = 'splitmate_v1'
@@ -29,7 +29,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setHydrated(true)
   }, [])
 
-  const setState: SetState = (update) => {
+  const setState: SetState = useCallback((update) => {
     setStateRaw(prev => {
       const next = typeof update === 'function' ? update(prev) : { ...prev, ...update }
       try {
@@ -37,7 +37,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } catch {}
       return next
     })
-  }
+  }, [])
 
   if (!hydrated) {
     return (
