@@ -1,7 +1,10 @@
+import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from backend.routers import users, houses, expenses, settlements
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="SplitMate API", version="1.0.0")
 
@@ -21,7 +24,8 @@ app.include_router(settlements.router)
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(status_code=500, content={"detail": str(exc)})
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 @app.get("/health")
