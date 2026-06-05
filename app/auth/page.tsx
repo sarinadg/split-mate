@@ -25,7 +25,7 @@ export default function AuthPage() {
       const err = await signUp(email.trim(), password)
       setLoading(false)
       if (err) { setError(err); return }
-      setSignUpDone(true)
+      router.replace('/')
     } else {
       const err = await signIn(email.trim(), password)
       setLoading(false)
