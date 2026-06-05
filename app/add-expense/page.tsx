@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useStore } from '@/lib/store'
-import { getNetBalance, CATEGORY_META, uid } from '@/lib/utils'
+import { useAuth } from '@/lib/auth'
+import { expensesApi, apiExpenseToStore, ApiError } from '@/lib/api'
+import { getNetBalance, CATEGORY_META } from '@/lib/utils'
 import type { Category } from '@/lib/types'
 import AppShell from '@/components/AppShell'
 
@@ -11,6 +13,7 @@ const CATEGORIES: Category[] = ['Rent', 'Utilities', 'Groceries', 'Entertainment
 
 export default function AddExpensePage() {
   const { state, setState } = useStore()
+  const { token } = useAuth()
   const router = useRouter()
 
   const [expenseName, setExpenseName] = useState('')
@@ -39,17 +42,29 @@ export default function AddExpensePage() {
     .map(m => ({ person: m, balance: getNetBalance(state.currentUserId!, m.id, state.expenses, state.settlements) }))
     .filter(h => Math.abs(h.balance) > 0.01)
 
-  const handleSave = () => {
+  const [saveError, setSaveError] = useState('')
+
+  const handleSave = async () => {
     if (!expenseName.trim() || amount <= 0 || splitBetween.length === 0) return
+    if (!token) return
     setSaving(true)
-    setState(prev => ({
-      ...prev,
-      expenses: [{
-        id: uid(), houseId: state.house!.id, name: expenseName.trim(),
-        amount, category, paidById, splitBetween, date: new Date().toISOString(),
-      }, ...prev.expenses],
-    }))
-    router.replace('/house')
+    setSaveError('')
+    try {
+      const expense = await expensesApi.create(token, {
+        house_id: state.house!.id,
+        name: expenseName.trim(),
+        amount,
+        category,
+        paid_by_id: paidById,
+        split_between: splitBetween,
+        date: new Date().toISOString(),
+      })
+      setState(prev => ({ ...prev, expenses: [apiExpenseToStore(expense), ...prev.expenses] }))
+      router.replace('/house')
+    } catch (e) {
+      setSaveError(e instanceof ApiError ? e.message : 'Failed to save expense')
+      setSaving(false)
+    }
   }
 
   const canSave = expenseName.trim() && amount > 0 && splitBetween.length > 0
@@ -207,6 +222,8 @@ export default function AddExpensePage() {
                 )}
               </div>
             </div>
+
+            {saveError && <p className="text-sm font-medium text-center" style={{ color: '#FF6B6B' }}>{saveError}</p>}
 
             <button
               onClick={handleSave}

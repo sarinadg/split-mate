@@ -4,16 +4,20 @@ import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useStore } from '@/lib/store'
-import { getNetBalance, uid } from '@/lib/utils'
+import { useAuth } from '@/lib/auth'
+import { settlementsApi, apiSettlementToStore, ApiError } from '@/lib/api'
+import { getNetBalance } from '@/lib/utils'
 import Avatar from '@/components/Avatar'
 import AppShell from '@/components/AppShell'
 
 export default function SettleUpPage({ params }: { params: Promise<{ personId: string }> }) {
   const { personId } = use(params)
   const { state, setState } = useStore()
+  const { token } = useAuth()
   const router = useRouter()
   const [settled, setSettled] = useState(false)
   const [settling, setSettling] = useState(false)
+  const [settleError, setSettleError] = useState('')
 
   useEffect(() => {
     if (!state.currentUserId || !state.house) router.replace('/')
@@ -34,18 +38,24 @@ export default function SettleUpPage({ params }: { params: Promise<{ personId: s
     (e.paidById === personId && e.splitBetween.includes(state.currentUserId!))
   )
 
-  const handleSettle = () => {
-    if (Math.abs(balance) < 0.01) return
+  const handleSettle = async () => {
+    if (Math.abs(balance) < 0.01 || !token || !state.house) return
     setSettling(true)
-    const settlement = {
-      id: uid(),
-      fromId: iOweThemMoney ? state.currentUserId! : personId,
-      toId: iOweThemMoney ? personId : state.currentUserId!,
-      amount: amountOwed,
-      date: new Date().toISOString(),
+    setSettleError('')
+    try {
+      const settlement = await settlementsApi.create(token, {
+        house_id: state.house.id,
+        from_id: iOweThemMoney ? state.currentUserId! : personId,
+        to_id: iOweThemMoney ? personId : state.currentUserId!,
+        amount: amountOwed,
+      })
+      setState(prev => ({ ...prev, settlements: [...prev.settlements, apiSettlementToStore(settlement)] }))
+      setSettling(false)
+      setSettled(true)
+    } catch (e) {
+      setSettleError(e instanceof ApiError ? e.message : 'Failed to record settlement')
+      setSettling(false)
     }
-    setState(prev => ({ ...prev, settlements: [...prev.settlements, settlement] }))
-    setTimeout(() => { setSettling(false); setSettled(true) }, 600)
   }
 
   return (
@@ -145,6 +155,8 @@ export default function SettleUpPage({ params }: { params: Promise<{ personId: s
                     })
                   )}
                 </div>
+
+                {settleError && <p className="text-sm font-medium text-center" style={{ color: '#FF6B6B' }}>{settleError}</p>}
 
                 <button
                   onClick={handleSettle}

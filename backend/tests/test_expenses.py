@@ -63,3 +63,40 @@ def test_add_expense_success():
         assert res.status_code == 200
         assert res.json()["name"] == "Electricity"
         assert res.json()["amount"] == 120.0
+
+
+def _chain(data):
+    m = MagicMock()
+    m.select.return_value = m
+    m.delete.return_value = m
+    m.eq.return_value = m
+    m.execute.return_value.data = data
+    return m
+
+
+def test_delete_expense_not_found():
+    with patch("backend.routers.expenses.supabase") as mock_db:
+        mock_db.table.return_value = _chain([])
+        res = client.delete("/expenses/exp-missing")
+        assert res.status_code == 404
+
+
+def test_delete_expense_forbidden():
+    with patch("backend.routers.expenses.supabase") as mock_db:
+        mock_db.table.side_effect = [
+            _chain([{"house_id": "house-1"}]),  # expense lookup
+            _chain([]),                          # membership check → not a member
+        ]
+        res = client.delete("/expenses/exp-1")
+        assert res.status_code == 403
+
+
+def test_delete_expense_success():
+    with patch("backend.routers.expenses.supabase") as mock_db:
+        mock_db.table.side_effect = [
+            _chain([{"house_id": "house-1"}]),          # expense lookup
+            _chain([{"user_id": "test-user-id"}]),      # membership check
+            _chain([]),                                  # delete
+        ]
+        res = client.delete("/expenses/exp-1")
+        assert res.status_code == 204

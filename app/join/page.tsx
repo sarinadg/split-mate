@@ -4,9 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useStore } from '@/lib/store'
-import { seedJoinedHouse } from '@/lib/data'
+import { useAuth } from '@/lib/auth'
+import { usersApi, housesApi, apiHouseToStore, ApiError } from '@/lib/api'
+import { getInitials, AVATAR_COLORS } from '@/lib/utils'
 
 export default function JoinPage() {
+  const { token } = useAuth()
   const { setState } = useStore()
   const router = useRouter()
   const [name, setName] = useState('')
@@ -14,12 +17,40 @@ export default function JoinPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleJoin = () => {
+  const handleJoin = async () => {
     if (!name.trim()) { setError('Please enter your name'); return }
     if (code.trim().length < 4) { setError('Please enter a valid house code'); return }
+    if (!token) { setError('Please sign in first'); router.replace('/auth'); return }
+
     setLoading(true)
-    setState(seedJoinedHouse(name.trim()))
-    router.replace('/house')
+    setError('')
+    try {
+      const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)]
+      const handle = '@' + name.trim().toLowerCase().replace(/\s+/g, '_')
+
+      const user = await usersApi.upsert(token, {
+        name: name.trim(),
+        initials: getInitials(name.trim()),
+        color,
+        handle,
+      })
+
+      const house = await housesApi.join(token, code.trim())
+      const { house: storeHouse, people } = apiHouseToStore(house)
+
+      setState({
+        currentUserId: user.id,
+        people,
+        house: storeHouse,
+        expenses: [],
+        settlements: [],
+      })
+
+      router.replace('/house')
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Something went wrong')
+      setLoading(false)
+    }
   }
 
   return (
@@ -41,7 +72,7 @@ export default function JoinPage() {
           <p className="text-base leading-relaxed mb-8" style={{ color: 'rgba(255,255,255,0.55)' }}>
             Enter the code your housemate shared and you'll be tracking expenses together instantly.
           </p>
-          {['🔑 Get the code from your housemate', '👤 Enter your name — no password needed', '⚖️ See your share of all expenses', '🤝 Settle up with one tap'].map(b => (
+          {['🔑 Get the code from your housemate', '👤 Enter your name to create your profile', '⚖️ See your share of all expenses', '🤝 Settle up with one tap'].map(b => (
             <div key={b} className="flex items-center gap-3 mb-3">
               <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#00BFA5' }} />
               <span className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.65)' }}>{b}</span>
@@ -105,7 +136,9 @@ export default function JoinPage() {
                 />
                 <p className="text-xs mt-2" style={{ color: '#9CA3AF' }}>Ask your housemate to share their house code from the dashboard</p>
               </div>
+
               {error && <p className="text-sm font-medium" style={{ color: '#FF6B6B' }}>{error}</p>}
+
               <button
                 onClick={handleJoin}
                 disabled={loading}
@@ -114,6 +147,11 @@ export default function JoinPage() {
               >
                 {loading ? 'Joining...' : '🏠 Join House'}
               </button>
+
+              <p className="text-xs text-center" style={{ color: '#9CA3AF' }}>
+                Starting fresh?{' '}
+                <Link href="/setup" style={{ color: '#FF6B6B', fontWeight: 600 }}>Create a house instead</Link>
+              </p>
             </div>
           </div>
         </div>

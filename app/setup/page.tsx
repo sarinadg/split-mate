@@ -4,9 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useStore } from '@/lib/store'
-import { seedNewHouse } from '@/lib/data'
+import { useAuth } from '@/lib/auth'
+import { usersApi, housesApi, apiHouseToStore, ApiError } from '@/lib/api'
+import { getInitials, AVATAR_COLORS } from '@/lib/utils'
 
 export default function SetupPage() {
+  const { token } = useAuth()
   const { setState } = useStore()
   const router = useRouter()
   const [name, setName] = useState('')
@@ -14,12 +17,40 @@ export default function SetupPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!name.trim()) { setError('Please enter your name'); return }
     if (!houseName.trim()) { setError('Please enter a house name'); return }
+    if (!token) { setError('Please sign in first'); router.replace('/auth'); return }
+
     setLoading(true)
-    setState(seedNewHouse(name.trim(), houseName.trim()))
-    router.replace('/house')
+    setError('')
+    try {
+      const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)]
+      const handle = '@' + name.trim().toLowerCase().replace(/\s+/g, '_')
+
+      const user = await usersApi.upsert(token, {
+        name: name.trim(),
+        initials: getInitials(name.trim()),
+        color,
+        handle,
+      })
+
+      const house = await housesApi.create(token, houseName.trim())
+      const { house: storeHouse, people } = apiHouseToStore(house)
+
+      setState({
+        currentUserId: user.id,
+        people,
+        house: storeHouse,
+        expenses: [],
+        settlements: [],
+      })
+
+      router.replace('/house')
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Something went wrong')
+      setLoading(false)
+    }
   }
 
   return (
@@ -39,13 +70,13 @@ export default function SetupPage() {
             Set up your share house in seconds
           </h2>
           <p className="text-base leading-relaxed mb-8" style={{ color: 'rgba(255,255,255,0.55)' }}>
-            We'll add sample housemates so you can explore straight away. Add your own friends anytime.
+            Create your house, share the code with housemates, and start splitting instantly.
           </p>
           {[
-            '🏠 Liam, Jake & Mia added automatically',
-            '💰 Sample expenses pre-loaded',
+            '🏠 Your house is created in the cloud',
+            '🔑 Share your code — mates join instantly',
             '🔄 Smart debt adjustment from day one',
-            '🔑 Share your house code with mates',
+            '💰 Real-time balance tracking',
           ].map(b => (
             <div key={b} className="flex items-center gap-3 mb-3">
               <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#FF6B6B' }} />
@@ -77,7 +108,6 @@ export default function SetupPage() {
         {/* Form area */}
         <div className="flex-1 flex flex-col justify-center px-6 lg:px-16 xl:px-24 py-10 lg:py-0">
           <div className="w-full max-w-md lg:mx-auto">
-            {/* Desktop back + title */}
             <div className="hidden lg:block mb-10">
               <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold mb-6" style={{ color: '#9CA3AF' }}>
                 <span>←</span> Back
@@ -116,13 +146,6 @@ export default function SetupPage() {
 
               {error && <p className="text-sm font-medium" style={{ color: '#FF6B6B' }}>{error}</p>}
 
-              <div className="flex items-start gap-3 px-4 py-3 rounded-xl" style={{ background: '#E0F7F4' }}>
-                <span className="text-sm shrink-0 mt-0.5">💡</span>
-                <p className="text-xs font-semibold leading-relaxed" style={{ color: '#00897B' }}>
-                  Liam, Jake &amp; Mia will be added as sample housemates so you can explore straight away.
-                </p>
-              </div>
-
               <button
                 onClick={handleCreate}
                 disabled={loading}
@@ -131,6 +154,11 @@ export default function SetupPage() {
               >
                 {loading ? 'Creating...' : '🚀 Create House & Get Started'}
               </button>
+
+              <p className="text-xs text-center" style={{ color: '#9CA3AF' }}>
+                Already have a code?{' '}
+                <Link href="/join" style={{ color: '#FF6B6B', fontWeight: 600 }}>Join a house instead</Link>
+              </p>
             </div>
           </div>
         </div>

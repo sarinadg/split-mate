@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 import { StoreProvider } from '@/lib/store'
+import { AuthProvider } from '@/lib/auth'
+import { DataLoader } from '@/lib/data-loader'
 
 const jakarta = Plus_Jakarta_Sans({
   variable: '--font-jakarta',
@@ -27,9 +29,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={jakarta.variable}>
       <body>
-        <StoreProvider>
-          <div className="app-root">{children}</div>
-        </StoreProvider>
+        <AuthProvider>
+          <StoreProvider>
+            <DataLoader />
+            <div className="app-root">{children}</div>
+          </StoreProvider>
+        </AuthProvider>
       </body>
     </html>
   )

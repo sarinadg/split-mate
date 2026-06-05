@@ -68,3 +68,8 @@ class SettlementResponse(BaseModel):
     to_id: str
     amount: float
     date: str
+
+
+class HouseBalancesResponse(BaseModel):
+    house_id: str
+    balances: dict[str, dict[str, float]]

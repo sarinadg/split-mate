@@ -3,11 +3,14 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useStore, clearStore } from '@/lib/store'
+import { useAuth } from '@/lib/auth'
 import AppShell from '@/components/AppShell'
 import { getAllBalances, totalIOwe, totalOwedToMe, formatAUD } from '@/lib/utils'
+import { housesApi } from '@/lib/api'
 
 export default function ProfilePage() {
   const { state, setState } = useStore()
+  const { token, signOut } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
@@ -22,12 +25,21 @@ export default function ProfilePage() {
   const owedToMe = totalOwedToMe(balances)
   const totalSpend = state.expenses.reduce((s, e) => s + e.amount, 0)
 
-  const handleReset = () => {
-    if (confirm('Reset all data and start over? This cannot be undone.')) {
-      clearStore()
-      setState({ currentUserId: null, people: [], house: null, expenses: [], settlements: [] })
-      router.replace('/')
+  const handleSignOut = async () => {
+    await signOut()
+    clearStore()
+    setState({ currentUserId: null, people: [], house: null, expenses: [], settlements: [] })
+    router.replace('/')
+  }
+
+  const handleLeaveHouse = async () => {
+    if (!confirm('Leave this house? You can rejoin with the house code.')) return
+    if (token && state.house) {
+      await housesApi.leave(token, state.house.id).catch(() => {})
     }
+    clearStore()
+    setState({ currentUserId: null, people: [], house: null, expenses: [], settlements: [] })
+    router.replace('/')
   }
 
   return (
@@ -138,14 +150,23 @@ export default function ProfilePage() {
               {/* Danger zone */}
               <div className="bg-white rounded-2xl p-5" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #FFE8E8' }}>
                 <h2 className="text-sm font-bold mb-1" style={{ color: '#FF6B6B' }}>Danger Zone</h2>
-                <p className="text-xs mb-4" style={{ color: '#9CA3AF' }}>This will delete all your data and cannot be undone.</p>
-                <button
-                  onClick={handleReset}
-                  className="px-5 py-2.5 font-bold text-sm rounded-xl transition-all"
-                  style={{ border: '1.5px solid #FF6B6B', color: '#FF6B6B', background: '#FFF0F0' }}
-                >
-                  🔄 Reset & Start Over
-                </button>
+                <p className="text-xs mb-4" style={{ color: '#9CA3AF' }}>These actions affect your account and house membership.</p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={handleLeaveHouse}
+                    className="px-5 py-2.5 font-bold text-sm rounded-xl transition-all"
+                    style={{ border: '1.5px solid #FF6B6B', color: '#FF6B6B', background: '#FFF0F0' }}
+                  >
+                    🚪 Leave House
+                  </button>
+                  <button
+                    onClick={handleSignOut}
+                    className="px-5 py-2.5 font-bold text-sm rounded-xl transition-all"
+                    style={{ border: '1.5px solid #9CA3AF', color: '#6B7280', background: '#F9FAFB' }}
+                  >
+                    Sign Out
+                  </button>
+                </div>
               </div>
 
               <p className="text-center text-xs" style={{ color: '#D1D5DB' }}>

@@ -4,23 +4,29 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useStore } from '@/lib/store'
+import { useAuth } from '@/lib/auth'
 
 const FEATURES = [
   { icon: '⚡', text: 'Add expenses in seconds' },
   { icon: '🔄', text: 'Smart debt adjustment across payments' },
   { icon: '🏠', text: 'Built for Australian share houses' },
-  { icon: '🔑', text: 'No account needed — just enter your name' },
+  { icon: '🔑', text: 'Backed by a real Python API' },
 ]
 
 export default function OnboardingPage() {
   const { state } = useStore()
+  const { session, loading: authLoading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (state.currentUserId && state.house) router.replace('/house')
-  }, [state.currentUserId, state.house, router])
+    if (authLoading) return
+    // Authenticated + data loaded → go to dashboard
+    if (state.currentUserId && state.house) { router.replace('/house'); return }
+    // Authenticated + no house yet → go to setup
+    if (session && state.currentUserId && !state.house) { router.replace('/setup'); return }
+  }, [state.currentUserId, state.house, session, authLoading, router])
 
-  if (state.currentUserId && state.house) return null
+  if (authLoading || (session && state.currentUserId)) return null
 
   return (
     <div className="min-h-dvh flex flex-col lg:flex-row">
@@ -82,11 +88,8 @@ export default function OnboardingPage() {
 
         {/* Mobile CTA */}
         <div className="relative z-10 w-full flex flex-col gap-3 lg:hidden">
-          <Link href="/setup" className="w-full py-4 text-center text-white font-bold text-base rounded-2xl" style={{ background: '#FF6B6B', boxShadow: '0 4px 16px rgba(255,107,107,0.4)' }}>
-            🏠 Create a House
-          </Link>
-          <Link href="/join" className="w-full py-4 text-center font-bold text-base rounded-2xl" style={{ background: 'rgba(255,255,255,0.08)', border: '1.5px solid rgba(255,255,255,0.2)', color: '#fff' }}>
-            🔑 Join a House
+          <Link href="/auth" className="w-full py-4 text-center text-white font-bold text-base rounded-2xl" style={{ background: '#FF6B6B', boxShadow: '0 4px 16px rgba(255,107,107,0.4)' }}>
+            Get Started
           </Link>
         </div>
       </div>
@@ -103,25 +106,14 @@ export default function OnboardingPage() {
 
           <div className="flex flex-col gap-4">
             <Link
-              href="/setup"
+              href="/auth"
               className="flex items-center justify-center gap-3 w-full py-4 text-white font-bold text-base rounded-2xl transition-all hover:opacity-90"
               style={{ background: '#FF6B6B', boxShadow: '0 4px 20px rgba(255,107,107,0.4)' }}
             >
-              <span className="text-xl">🏠</span>
+              <span className="text-xl">🚀</span>
               <div className="text-left">
-                <div>Create a House</div>
-                <div className="text-xs font-medium opacity-80">Start a new share house</div>
-              </div>
-            </Link>
-            <Link
-              href="/join"
-              className="flex items-center justify-center gap-3 w-full py-4 font-bold text-base rounded-2xl transition-all hover:bg-gray-50"
-              style={{ border: '2px solid #F0F0F0', color: '#1A1A2E' }}
-            >
-              <span className="text-xl">🔑</span>
-              <div className="text-left">
-                <div>Join a House</div>
-                <div className="text-xs font-medium" style={{ color: '#9CA3AF' }}>Enter a house code</div>
+                <div>Get Started</div>
+                <div className="text-xs font-medium opacity-80">Sign in or create an account</div>
               </div>
             </Link>
           </div>

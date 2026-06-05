@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from backend.auth import get_current_user
 from backend.database import supabase
 from backend.models import ExpenseCreate, ExpenseResponse
@@ -35,3 +35,23 @@ def list_expenses(house_id: str, user_id: str = Depends(get_current_user)):
         .execute()
     )
     return result.data
+
+
+@router.delete("/{expense_id}", status_code=204)
+def delete_expense(expense_id: str, user_id: str = Depends(get_current_user)):
+    result = supabase.table("expenses").select("house_id").eq("id", expense_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    house_id = result.data[0]["house_id"]
+    membership = (
+        supabase.table("house_members")
+        .select("user_id")
+        .eq("house_id", house_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    if not membership.data:
+        raise HTTPException(status_code=403, detail="Not a member of this house")
+
+    supabase.table("expenses").delete().eq("id", expense_id).execute()

@@ -73,3 +73,42 @@ def test_join_house_success():
         res = client.post("/houses/join", json={"code": "ABC123"})
         assert res.status_code == 200
         assert res.json()["id"] == "house-1"
+
+
+def _chain(data):
+    m = MagicMock()
+    m.select.return_value = m
+    m.delete.return_value = m
+    m.eq.return_value = m
+    m.execute.return_value.data = data
+    return m
+
+
+def test_leave_house_not_member():
+    with patch("backend.routers.houses.supabase") as mock_db:
+        mock_db.table.return_value = _chain([])
+        res = client.delete("/houses/house-1/leave")
+        assert res.status_code == 404
+
+
+def test_leave_house_success():
+    with patch("backend.routers.houses.supabase") as mock_db:
+        mock_db.table.side_effect = [
+            _chain([{"user_id": TEST_USER_ID}]),  # membership check
+            _chain([]),                            # delete member
+            _chain([{"user_id": "other-user"}]),  # remaining members (house survives)
+        ]
+        res = client.delete("/houses/house-1/leave")
+        assert res.status_code == 204
+
+
+def test_leave_house_last_member_deletes_house():
+    with patch("backend.routers.houses.supabase") as mock_db:
+        mock_db.table.side_effect = [
+            _chain([{"user_id": TEST_USER_ID}]),  # membership check
+            _chain([]),                            # delete member
+            _chain([]),                            # no remaining members → house deleted
+            _chain([]),                            # delete house
+        ]
+        res = client.delete("/houses/house-1/leave")
+        assert res.status_code == 204
