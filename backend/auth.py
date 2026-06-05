@@ -16,13 +16,17 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_security),
 ) -> str:
     token = credentials.credentials
-    response = httpx.get(
-        f"{_SUPABASE_URL}/auth/v1/user",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "apikey": _SUPABASE_SERVICE_KEY,
-        },
-    )
+    try:
+        response = httpx.get(
+            f"{_SUPABASE_URL}/auth/v1/user",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "apikey": _SUPABASE_SERVICE_KEY,
+            },
+            timeout=10.0,
+        )
+    except httpx.HTTPError:
+        raise HTTPException(status_code=503, detail="Auth service unavailable")
     if response.status_code != 200:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     return response.json()["id"]
