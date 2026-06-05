@@ -6,10 +6,11 @@ import { useStore } from './store'
 import {
   usersApi, housesApi, expensesApi, settlementsApi,
   apiHouseToStore, apiExpenseToStore, apiSettlementToStore,
+  ApiError,
 } from './api'
 
 export function DataLoader() {
-  const { token, loading: authLoading } = useAuth()
+  const { token, session, loading: authLoading } = useAuth()
   const { setState } = useStore()
   const lastToken = useRef<string | null>(null)
 
@@ -55,13 +56,16 @@ export function DataLoader() {
           expenses: expenses.map(apiExpenseToStore),
           settlements: settlements.map(apiSettlementToStore),
         })
-      } catch {
-        // 404 = no profile yet, network error, etc. — leave store as-is
+      } catch (err) {
+        // 404 = new user with no profile yet — set their ID so home page redirects to /setup
+        if (err instanceof ApiError && err.status === 404 && session?.user.id) {
+          setState(prev => ({ ...prev, currentUserId: session.user.id }))
+        }
       }
     }
 
     load()
-  }, [token, authLoading, setState])
+  }, [token, session, authLoading, setState])
 
   return null
 }
